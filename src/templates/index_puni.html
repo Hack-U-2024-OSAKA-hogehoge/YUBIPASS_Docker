@@ -1,3 +1,5 @@
+{% load static %}
+
 <!DOCTYPE_html>
 <html lang="ja">
 <head>
@@ -16,8 +18,8 @@
 <br />
 <textarea cols="80" rows="16" id="outputArea" readonly></textarea>
 <p>Oct/2/2022</p>
-<script src="static/js/script.js"></script>
-<script src="static/js/serial.js"></script>
+{% comment %} <script src="{% static 'js/script_puni.js' %}"></script> {% endcomment %}
+<script src="{% static 'js/serial_puni.js' %}"></script>
 
 </body>
 </html>
