@@ -1,0 +1,23 @@
+<!DOCTYPE_html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Web Serial API Console</title>
+</head>
+<body>
+<h1>Web Serial API Console</h1>
+<button onclick="onConnectButtonClick()">Connect</button> 115200 Only
+<button onclick="requestSerialPortAndFetchImage('print.bmp')">Fetch Image</button>
+<br />
+
+<input type="text" id="sendInput" />
+<input type="button" value="Send" onclick="sendSerial();" />
+<br />
+<textarea cols="80" rows="16" id="outputArea" readonly></textarea>
+<p>Oct/2/2022</p>
+<script src="static/js/script.js"></script>
+<script src="static/js/serial.js"></script>
+
+</body>
+</html>
