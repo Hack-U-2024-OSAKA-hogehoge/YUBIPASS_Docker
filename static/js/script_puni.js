@@ -1,4 +1,3 @@
-
 const IMAGE_WIDTH = 256;
 const IMAGE_HEIGHT = 288;
 const IMAGE_DEPTH = 8;
@@ -12,8 +11,8 @@ async function assembleBMPHeader(width, height, depth, includePalette = false) {
         BMP_HEADER_SIZE + (Math.ceil((depth * width + 31) / 32) * 4 * height);
     const rasterOffset = includePalette ? BMP_HEADER_SIZE + (4 * Math.pow(2, depth)) : BMP_HEADER_SIZE;
 
-    const bmpHeader = new ArrayBuffer(BMP_HEADER_SIZE);
-    const headerView = new DataView(bmpHeader);
+    const bmpHeader = new Uint8Array(BMP_HEADER_SIZE);
+    const headerView = new DataView(bmpHeader.buffer);
     headerView.setUint8(0, 0x42); // "B"
     headerView.setUint8(1, 0x4D); // "M"
     headerView.setUint32(2, fileSize, true);
@@ -35,57 +34,140 @@ async function assembleBMPHeader(width, height, depth, includePalette = false) {
             bmpPalette[index * 4 + 2] = index;
             bmpPalette[index * 4 + 3] = index;
         }
-        return [bmpHeader, bmpPalette.buffer];
+        return [bmpHeader, bmpPalette];
     }
 
     return bmpHeader;
 }
 
-async function getFingerprintImage(port, outputFileName) {
-    const writer = port.writable.getWriter();
-    const fileStream = await fetch(outputFileName, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' } });
-    const outFileWriter = fileStream.body.getWriter();
 
-    await writer.write(IMAGE_START_SIGNATURE);
+// async function requestSerialPortAndFetchImage(outputFileName) {
+//     try {
+//         // Get serial port somehow
+//         const port = await navigator.serial.requestPort();
+//         await port.open({ baudRate: 115200 });
+//         await getFingerprintImage(port, outputFileName);
+//     } catch (error) {
+//         console.error('Error:', error);
+//     }
+// }
 
-    let receivedHeader = false;
-    let totalBytesExpected = 0;
+// async function requestSerialPortAndFetchImage(outputFileName) {
+//     try {
+//         // Get serial port somehow
+//         const port = await navigator.serial.requestPort();
+//         await port.open({ baudRate: 57600 });
 
-    while (true) {
-        const { value, done } = await port.readable.getReader().read();
-        if (done) break;
+//         // Set up reader to receive data from Arduino
+//         const reader = port.readable.getReader();
 
-        if (!receivedHeader) {
-            if (value.length > 0 && value[0] === IMAGE_START_SIGNATURE[0]) {
-                const [header, palette] = await assembleBMPHeader(IMAGE_WIDTH, IMAGE_HEIGHT, IMAGE_DEPTH, true);
-                await outFileWriter.write(header);
-                if (palette) await outFileWriter.write(palette);
-                receivedHeader = true;
-                totalBytesExpected = Math.ceil((IMAGE_WIDTH * IMAGE_HEIGHT) / 2);
-            }
-        } else {
-            await outFileWriter.write(value);
-            totalBytesExpected -= value.length;
-            if (totalBytesExpected <= 0) {
-                await writer.releaseLock();
-                await outFileWriter.close();
-                console.log(`Image saved to ${outputFileName}`);
-                break;
-            }
-        }
-    }
+//         // Function to add Arduino output to textarea
+//         async function addArduinoOutput(msg) {
+//             var textarea = document.getElementById('outputArea');
+//             textarea.value += msg;
+//             textarea.scrollTop = textarea.scrollHeight;
+//         }
 
-    await port.close();
-}
+//         // Listen for data from Arduino
+//         while (true) {
+//             const { value, done } = await reader.read();
+//             if (done) break;
+//             const inputValue = new TextDecoder().decode(value);
+//             addArduinoOutput(inputValue);
+
+//             // 受信したバイナリデータがあれば、ファイルとして保存する
+//             const signature = new Uint8Array([0xAA]);
+//             if (value.length > 0 && value[0] === signature[0]) {
+//                 // バイナリデータの保存処理
+//                 const blob = new Blob([value], { type: 'application/octet-stream' });
+//                 const url = URL.createObjectURL(blob);
+
+//                 // ダウンロード用リンクを生成して自動クリックする
+//                 const a = document.createElement('a');
+//                 a.href = url;
+//                 a.download = outputFileName; // ダウンロード時のファイル名を指定
+//                 document.body.appendChild(a);
+//                 a.click();
+//                 document.body.removeChild(a);
+//                 URL.revokeObjectURL(url);
+
+//                 // ファイル保存後にループを抜ける
+//                 break;
+//             }
+//         }
+//         // Fetch image from Arduino
+//         await getFingerprintImage(port, outputFileName);
+//     } catch (error) {
+//         console.error('Error:', error);
+//     }
+// }
 
 async function requestSerialPortAndFetchImage(outputFileName) {
-    console.log(outputFileName);
-    console.log(port);
     try {
-        await getFingerprintImage(port, outputFileName);
+        // シリアルポートを取得
+        const port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 57600 });
+
+        const writer = port.writable.getWriter();
+        // const fileStream = await window.showSaveFilePicker();
+        // const outFileWriter = fileStream.getWriter();
+
+        await writer.write(IMAGE_START_SIGNATURE);
+
+        let receivedHeader = false;
+        let totalBytesExpected = 0;
+        let imageData = [];
+
+        // textareaにArduinoからの出力を表示するための関数
+        function addArduinoOutput(msg) {
+            var textarea = document.getElementById('outputArea');
+            textarea.value += msg;
+            textarea.scrollTop = textarea.scrollHeight;
+        }
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            addArduinoOutput(new TextDecoder().decode(value));
+
+            if (!receivedHeader) {
+                if (value.length > 0 && value[0] === IMAGE_START_SIGNATURE[0]) {
+                    const header = assembleBMPHeader(IMAGE_WIDTH, IMAGE_HEIGHT, IMAGE_DEPTH, true);
+                    await outFileWriter.write(header);
+                    receivedHeader = true;
+                    totalBytesExpected = Math.ceil((IMAGE_WIDTH * IMAGE_HEIGHT) / 2);
+                }
+            } else {
+                imageData.push(value);
+                totalBytesExpected -= value.length;
+                if (totalBytesExpected <= 0) {
+                    await writer.releaseLock();
+                    await outFileWriter.write(new Blob(imageData, { type: 'application/octet-stream' }));
+                    await outFileWriter.close();
+                    console.log(`Image saved to ${outputFileName}`);
+                    
+                    // 自動でダウンロードする
+                    const blob = new Blob(imageData, { type: 'application/octet-stream' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = outputFileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    break;
+                }
+            }
+        }
     } catch (error) {
         console.error('Error:', error);
     }
 }
+
+
+
 
 // Usage: requestSerialPortAndFetchImage('print.bmp');
