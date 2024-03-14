@@ -10,7 +10,9 @@
 <body>
 <h1>Web Serial API Console</h1>
 <button onclick="onConnectButtonClick()">Connect</button> 115200 Only
-<button onclick="requestSerialPortAndFetchImage('print.bmp')">Fetch Image</button>
+<button onclick="getFingerprintImage('print.bmp')">Fetch Image</button>
+{% comment %} <button onclick="getFingerprintImage('COM5', 115200, 'fingerprint.bmp')">Fetch Image</button> {% endcomment %}
+{% comment %} <button onclick="main()">Fetch Image</button> {% endcomment %}
 <br />
 
 <input type="text" id="sendInput" />
