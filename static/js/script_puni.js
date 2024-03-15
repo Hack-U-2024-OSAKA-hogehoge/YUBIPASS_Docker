@@ -2,16 +2,30 @@ const IMAGE_WIDTH = 256;
 const IMAGE_HEIGHT = 288;
 const IMAGE_DEPTH = 8;
 const IMAGE_START_SIGNATURE = new Uint8Array([0xAA]);
+let head=new Uint8Array;
 
 async function assembleBMPHeader(width, height, depth, includePalette = false) {
     const BMP_HEADER_SIZE = 54;
     const TYPICAL_PIXELS_PER_METER = 2835;
 
-    const fileSize = includePalette ? BMP_HEADER_SIZE + (4 * Math.pow(2, depth)) + (Math.ceil((depth * width + 31) / 32) * 4 * height) :
-        BMP_HEADER_SIZE + (Math.ceil((depth * width + 31) / 32) * 4 * height);
-    const rasterOffset = includePalette ? BMP_HEADER_SIZE + (4 * Math.pow(2, depth)) : BMP_HEADER_SIZE;
+    const byteWidth = Math.floor((depth * width + 31) / 32) * 4
+    const imageSize = byteWidth * height
 
-    const bmpHeader = new Uint8Array(BMP_HEADER_SIZE);
+    const numColours = Math.pow(2, depth)
+    const bmpPaletteSize = 4 * numColours
+
+    console.log();
+    const fileSize = includePalette ? BMP_HEADER_SIZE + bmpPaletteSize + imageSize :
+        BMP_HEADER_SIZE + imageSize;
+    const rasterOffset = includePalette ? BMP_HEADER_SIZE + bmpPaletteSize : BMP_HEADER_SIZE;
+
+    let size=0;
+    if(includePalette){
+        size=BMP_HEADER_SIZE+bmpPaletteSize;
+    }else{
+        size=BMP_HEADER_SIZE;
+    }
+    const bmpHeader = new Uint8Array(size);
     const headerView = new DataView(bmpHeader.buffer);
     headerView.setUint8(0, 0x42); // "B"
     headerView.setUint8(1, 0x4D); // "M"
@@ -22,21 +36,19 @@ async function assembleBMPHeader(width, height, depth, includePalette = false) {
     headerView.setInt32(22, -height, true);
     headerView.setUint16(26, 1, true);
     headerView.setUint16(28, depth, true);
-    headerView.setUint32(34, Math.ceil((depth * width + 31) / 32) * 4 * height, true);
+    headerView.setUint32(34, imageSize, true);
     headerView.setUint32(38, TYPICAL_PIXELS_PER_METER, true);
     headerView.setUint32(42, TYPICAL_PIXELS_PER_METER, true);
 
     if (includePalette) {
-        const bmpPalette = new Uint8Array(4 * Math.pow(2, depth));
-        for (let index = 0; index < Math.pow(2, depth); index++) {
-            bmpPalette[index * 4] = index;
-            bmpPalette[index * 4 + 1] = index;
-            bmpPalette[index * 4 + 2] = index;
-            bmpPalette[index * 4 + 3] = index;
+        for (let index = 0; index < numColours; index++) {
+            headerView.setUint8((index * 4)+54, index, true);
+            headerView.setUint8((index * 4)+55, index, true);
+            headerView.setUint8((index * 4)+56, index, true);
+            headerView.setUint8((index * 4)+57, index, true);
         }
-        return [bmpHeader, bmpPalette];
     }
-
+    head=bmpHeader;
     return bmpHeader;
 }
 
@@ -106,11 +118,13 @@ async function requestSerialPortAndFetchImage(outputFileName) {
     try {
         // シリアルポートを取得
         const port = await navigator.serial.requestPort();
-        await port.open({ baudRate: 57600 });
+        await port.open({ baudRate: 115200 });
 
         const writer = port.writable.getWriter();
-        // const fileStream = await window.showSaveFilePicker();
-        // const outFileWriter = fileStream.getWriter();
+        const reader = port.readable.getReader();
+        //const fileStream = await window.showSaveFilePicker();
+        //const outFileWriter = fileStream.getWriter();
+        const outFileWriter='';
 
         await writer.write(IMAGE_START_SIGNATURE);
 
@@ -125,6 +139,7 @@ async function requestSerialPortAndFetchImage(outputFileName) {
             textarea.scrollTop = textarea.scrollHeight;
         }
 
+
         while (true) {
             const { value, done } = await reader.read();
             if (done) break;
@@ -133,35 +148,45 @@ async function requestSerialPortAndFetchImage(outputFileName) {
 
             if (!receivedHeader) {
                 if (value.length > 0 && value[0] === IMAGE_START_SIGNATURE[0]) {
-                    const header = assembleBMPHeader(IMAGE_WIDTH, IMAGE_HEIGHT, IMAGE_DEPTH, true);
-                    await outFileWriter.write(header);
+                    assembleBMPHeader(IMAGE_WIDTH, IMAGE_HEIGHT, IMAGE_DEPTH, true);
+                    console.log(head);
+                    imageData.push(head);
+                    //await outFileWriter.write(header);
                     receivedHeader = true;
-                    totalBytesExpected = Math.ceil((IMAGE_WIDTH * IMAGE_HEIGHT) / 2);
+                    totalBytesExpected = Math.floor((IMAGE_WIDTH * IMAGE_HEIGHT) / 2);
+                    console.log(imageData);
+                    console.log(totalBytesExpected);
                 }
             } else {
                 imageData.push(value);
                 totalBytesExpected -= value.length;
+                //console.log(totalBytesExpected);
                 if (totalBytesExpected <= 0) {
+                    //console.log(imageData);
                     await writer.releaseLock();
-                    await outFileWriter.write(new Blob(imageData, { type: 'application/octet-stream' }));
-                    await outFileWriter.close();
+                    //await outFileWriter.write(new Blob(imageData, { type: 'application/octet-stream' }));
+                    //await outFileWriter.close();
                     console.log(`Image saved to ${outputFileName}`);
-                    
+
                     // 自動でダウンロードする
                     const blob = new Blob(imageData, { type: 'application/octet-stream' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
+                    console.log(blob);
+                    console.log(url);
+                    console.log(a);
                     a.href = url;
                     a.download = outputFileName;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
-                    
+
                     break;
                 }
             }
         }
+        console.log(imageData);
     } catch (error) {
         console.error('Error:', error);
     }

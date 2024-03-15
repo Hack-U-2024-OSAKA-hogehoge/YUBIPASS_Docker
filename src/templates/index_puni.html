@@ -11,6 +11,7 @@
 <h1>Web Serial API Console</h1>
 <button onclick="onConnectButtonClick()">Connect</button> 115200 Only
 <button onclick="requestSerialPortAndFetchImage('print.bmp')">Fetch Image</button>
+<!-- <button onclick="getSerialList()">Fetch Image</button> -->
 <br />
 
 <input type="text" id="sendInput" />
@@ -20,5 +21,6 @@
 <p>Oct/2/2022</p>
 <script src="{% static 'js/script_puni.js' %}"></script>
 <script src="{% static 'js/serial_puni.js' %}"></script>
+<script src="{% static 'js/script_send.js' %}"></script>
 </body>
 </html>
